@@ -10,7 +10,7 @@
       align="justify"
     >
       <q-tab name="users" icon="perm_identity" />
-      <q-tab name="list" icon="flutter_dash" />
+      <q-tab name="cards" icon="flutter_dash" @click="getCards()" />
     </q-tabs>
 
     <q-tab-panels v-model="tab" animated>
@@ -183,9 +183,46 @@
         </div>
       </q-tab-panel>
 
-      <q-tab-panel name="list">
-        <div class="text-h6">Alarms</div>
-        Lorem ipsum dolor sit amet consectetur adipisicing elit.
+      <q-tab-panel name="cards">
+        <div class="row q-mb-sm">
+          <q-input outlined v-model="nameCard" @update:modelValue="searchCard()"
+                   debounce="1000" square dense label="Tìm tên tướng" class="col-10" clearable/>
+          <q-space></q-space>
+          <div class="col-2 q-pl-sm row">
+            <q-btn color="green" icon="add" square dense class="col-12" @click="addCard()" />
+          </div>
+        </div>
+        <div class="q-gutter-sm">
+          <q-radio v-model="nuoc" checked-icon="task_alt" unchecked-icon="panorama_fish_eye" val="Thục" label="Thục" />
+          <q-radio v-model="nuoc" checked-icon="task_alt" unchecked-icon="panorama_fish_eye" val="Nguỵ" label="Nguỵ" />
+          <q-radio v-model="nuoc" checked-icon="task_alt" unchecked-icon="panorama_fish_eye" val="Ngô" label="Ngô" />
+          <q-radio v-model="nuoc" checked-icon="task_alt" unchecked-icon="panorama_fish_eye" val="Quần" label="Quần" />
+        </div>
+
+        <div v-for="(card, i) in cards" :key="i" class="q-pa-sm">
+          <div class="row justify-between items-center">
+            <div class="col-12 row">
+              <div class="text-bold">
+                {{ card.key }}
+              </div>
+              <q-space></q-space>
+              <div style="font-size: 10px">
+                {{getLastUpdate(card.updated || 0) || ""}}
+              </div>
+            </div>
+            <div class="col-12 row justify-between items-center">
+              <div class="col-4">WIN</div>
+              <div class="col-4 q-pl-md">
+                {{card.win}}
+              </div>
+              <div class="col-4 row justify-end">
+                <q-btn flat icon="add" size="sm" @click="updateCard(card.key, card, 'win', false)" />
+                <q-btn flat icon="remove" size="sm" @click="updateCard(card.key, card, 'win', true)"/>
+              </div>
+            </div>
+          </div>
+          <q-separator class="q-mt-md" />
+        </div>
       </q-tab-panel>
     </q-tab-panels>
   </q-page>
@@ -199,21 +236,32 @@ import moment from 'moment';
 export default {
   data() {
     return {
+      nuoc: "Thục",
+      desert: {
+        thuc: false,
+        nguy: false,
+        ngo: false,
+        quan: false
+      },
       userId: '',
-      tab: 'users',
+      tab: 'cards',
       moneyUpdate: 0,
       listUser: [],
       messages: {},
       userWin: [],
       userLost: [],
       optionUsers: [],
-      amount: 10000
+      amount: 10000,
+      cards: [],
+      cardsOrigin: [],
+      nameCard: ""
     }
   },
 
   computed: {
   },
-
+  watch: {
+  },
   methods: {
     updateMoney(key, user, money) {
       user = JSON.parse(JSON.stringify(user))
@@ -348,11 +396,72 @@ export default {
       }
       return moment(time).calendar();
     },
-
     formatNumber (number) {
       return new Intl.NumberFormat("vi-VN", { maximumSignificantDigits: 3 }).format(
         number,
       )
+    },
+    addCard() {
+      if (!this.nameCard) {
+        return;
+      }
+      set(ref(db, 'cards/' + this.nameCard), {
+        win: 1,
+        lost: 0,
+        nuoc: this.nuoc
+      })
+
+      this.nameCard = ""
+      this.$q.notify({
+        type: 'positive',
+        message: 'Giỏi quá !!!',
+        timeout: 500
+      });
+    },
+    updateCard(key, card, field, isRemove) {
+      card = JSON.parse(JSON.stringify(card));
+      delete card.key
+
+      card.updated = new Date().getTime()
+      if (isRemove) {
+        card[field]--
+      } else {
+        card[field]++
+      }
+
+      set(ref(db, 'cards/' + key), card);
+
+      this.$q.notify({
+        type: 'positive',
+        message: 'Giỏi quá !!!',
+        timeout: 500
+      });
+    },
+    searchCard() {
+      let cardsOrigin = JSON.parse(JSON.stringify(this.cardsOrigin));
+      if (this.nameCard) {
+        const lowerKeyword = this.nameCard.toLowerCase()
+        this.cards = cardsOrigin.filter(item => item.key.toLowerCase().includes(lowerKeyword))
+        return;
+      }
+
+      this.cards = cardsOrigin
+    },
+    getCards() {
+      onValue(ref(db, '/cards'), (snapshot) => {
+        const sortedObj = Object.fromEntries(
+          Object.entries(snapshot.val()).sort(([, a], [, b]) => b.win - a.lost)
+        );
+        let cards = []
+        Object.keys(sortedObj).forEach(card => {
+          sortedObj[card].key = card
+          cards.push(sortedObj[card])
+        })
+        this.cards = cards;
+        this.cardsOrigin = cards;
+
+        this.searchCard()
+      })
     }
   },
 
