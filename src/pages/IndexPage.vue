@@ -1,25 +1,98 @@
 <template>
-  <q-page class="q-pa-md">
-    <div class="row q-mb-md">
-      <q-input outlined v-model="userId" label="Tên người chơi" class="col-8" />
-      <q-space></q-space>
-      <q-btn color="primary" label="Thêm" class="col-3" @click="addUser()" />
-    </div>
-
+  <q-page>
     <q-tabs
       v-model="tab"
       dense
-      class="text-grey"
-      active-color="primary"
-      indicator-color="primary"
+      mobile-arrows
+      class="bg-green text-white shadow-2"
+      active-color="white"
+      indicator-color="white"
       align="justify"
     >
-      <q-tab name="users" icon="mail" label="Users" no-caps />
-      <q-tab name="list" icon="alarm" label="Alarms" />
+      <q-tab name="users" icon="perm_identity" />
+      <q-tab name="list" icon="flutter_dash" />
     </q-tabs>
 
     <q-tab-panels v-model="tab" animated>
       <q-tab-panel name="users">
+        <div class="row q-mb-sm">
+          <q-input outlined v-model="userId" square dense label="Tên người chơi" class="col-10" />
+          <q-space></q-space>
+          <div class="col-2 q-pl-sm row">
+            <q-btn color="green" icon="add" square dense class="col-12" @click="addUser()" />
+          </div>
+        </div>
+
+        <div class="row q-mb-sm">
+          <q-select
+            filled
+            v-model="userWin"
+            multiple
+            :options="optionUsers"
+            option-value="id"
+            option-label="id"
+            class="col-12"
+            label="You win"
+            emit-value
+            map-options
+          >
+            <template v-slot:selected-item="scope">
+              <q-chip
+                removable
+                dense
+                @remove="scope.removeAtIndex(scope.index)"
+                :tabindex="scope.tabindex"
+                color="white"
+                text-color="secondary"
+                class="q-ma-none"
+              >
+                <q-avatar v-if="scope.opt.avatar" color="secondary" text-color="white">
+                  <img :src="scope.opt.avatar">
+                </q-avatar>
+                <q-avatar v-else color="secondary" text-color="white" icon="perm_identity" />
+                {{ scope.opt.id }}
+              </q-chip>
+            </template>
+          </q-select>
+
+          <div class="row col-12 q-mt-sm">
+            <q-select
+              filled
+              v-model="userLost"
+              multiple
+              :options="optionUsers"
+              option-value="id"
+              option-label="id"
+              class="col-10"
+              label="You lost"
+              emit-value
+              map-options
+            >
+              <template v-slot:selected-item="scope">
+                <q-chip
+                  removable
+                  dense
+                  @remove="scope.removeAtIndex(scope.index)"
+                  :tabindex="scope.tabindex"
+                  color="white"
+                  text-color="secondary"
+                  class="q-ma-none"
+                >
+                  <q-avatar v-if="scope.opt.avatar" color="secondary" text-color="white">
+                    <img :src="scope.opt.avatar">
+                  </q-avatar>
+                  <q-avatar v-else color="secondary" text-color="white" icon="perm_identity" />
+                  {{ scope.opt.id }}
+                </q-chip>
+              </template>
+            </q-select>
+            <q-space></q-space>
+            <div class="col-2 q-pl-sm row">
+              <q-btn color="green" icon="add" square dense class="col-12" @click="updateUser()" />
+            </div>
+          </div>
+        </div>
+
         <div v-for="(user, key, i) in listUser" :key="key" class="q-pa-sm">
           <div class="row justify-between items-center">
             <div class="col-12 row">
@@ -34,6 +107,39 @@
                 {{getLastUpdate(user.updated || 0) || ""}}
               </div>
             </div>
+            <div class="col-12 row">
+              <div class="col-4">Tổng số tiền ăn được</div>
+              <div class="col-4 q-pl-md text-bold">
+                {{formatNumber((user.money || 0))}} VND
+                <q-popup-edit v-model="user.money" v-slot="scope">
+                  <q-input
+                    autofocus
+                    outlined
+                    dense
+                    v-model="scope.value"
+                    :model-value="scope.value"
+                  >
+                    <template v-slot:after>
+                      <q-btn
+                        flat dense color="negative" icon="cancel"
+                        @click.stop.prevent="scope.cancel"
+                      />
+
+                      <q-btn
+                        flat dense color="positive" icon="check_circle"
+                        @click.stop.prevent="updateMoney(key, user, scope.value)"
+                        v-close-popup
+                      />
+                    </template>
+                  </q-input>
+                </q-popup-edit>
+              </div>
+              <div class="col-4 row justify-end">
+                <div style="font-size: 8px">
+                  Tính từ ngày 13/07/2025
+                </div>
+              </div>
+            </div>
             <div class="col-12 row justify-between items-center">
               <div class="col-4">Tham gia</div>
               <div class="col-4 q-pl-md">{{user.svtg || 0}}</div>
@@ -44,15 +150,13 @@
             </div>
             <div class="col-12 row justify-between items-center">
               <div class="col-4">Tỉ lệ thắng</div>
-              <div class="col-4 q-pl-md">{{user.ttl || 0}} / {{user.svtg || 0}} ({{percentageFormatter(user.ttl, user.svtg)}})</div>
+              <div class="col-4 q-pl-md">{{user.ttl || 0}} / {{user.svtg || 0}}</div>
               <div class="col-4 row justify-end">
-                <!--            <q-btn flat icon="add" size="sm"  @click="update(key, user, 'ttl')" />-->
-                <!--            <q-btn flat icon="remove" size="sm"  @click="update(key, user, 'ttl', true)" />-->
               </div>
             </div>
             <div class="col-12 row justify-between items-center">
               <div class="col-4">Tỉ lệ thua</div>
-              <div class="col-4 q-pl-md">{{(user.svtg || 0) - (user.ttl || 0)}} / {{user.svtg || 0}} ({{percentageFormatter(((user.svtg || 0) - (user.ttl || 0)), user.svtg)}})</div>
+              <div class="col-4 q-pl-md">{{(user.svtg || 0) - (user.ttl || 0)}} / {{user.svtg || 0}}</div>
               <div class="col-4 row justify-end">
                 <q-btn flat icon="add" size="sm" @click="update(key, user, 'svtg')" />
                 <q-btn flat icon="remove" size="sm"  @click="update(key, user, 'svtg', true)" />
@@ -60,7 +164,7 @@
             </div>
             <div class="col-12 row justify-between items-center">
               <div class="col-4">Tỉ lệ thắng solo</div>
-              <div class="col-4 q-pl-md">{{user.tltsl || 0}} / {{user.svtg || 0}} ({{percentageFormatter(user.tltsl, user.svtg)}})</div>
+              <div class="col-4 q-pl-md">{{user.tltsl || 0}} / {{user.svtg || 0}}</div>
               <div class="col-4 row justify-end">
                 <q-btn flat icon="add" size="sm" @click="update(key, user, 'tltsl')" />
                 <q-btn flat icon="remove"  size="sm" @click="update(key, user, 'tltsl', true)" />
@@ -68,7 +172,7 @@
             </div>
             <div class="col-12 row justify-between items-center">
               <div class="col-4"> Tỉ lệ thắng team</div>
-              <div class="col-4 q-pl-md">{{user.tltt || 0}} / {{user.svtg || 0}} ({{percentageFormatter(user.tltt, user.svtg)}})</div>
+              <div class="col-4 q-pl-md">{{user.tltt || 0}} / {{user.svtg || 0}}</div>
               <div class="col-4 row justify-end">
                 <q-btn flat icon="add"  size="sm" @click="update(key, user, 'tltt')" />
                 <q-btn flat icon="remove" size="sm"  @click="update(key, user, 'tltt', true)" />
@@ -97,8 +201,13 @@ export default {
     return {
       userId: '',
       tab: 'users',
+      moneyUpdate: 0,
       listUser: [],
       messages: {},
+      userWin: [],
+      userLost: [],
+      optionUsers: [],
+      amount: 10000
     }
   },
 
@@ -106,6 +215,11 @@ export default {
   },
 
   methods: {
+    updateMoney(key, user, money) {
+      user = JSON.parse(JSON.stringify(user))
+      user.money = money || 0;
+      set(ref(db, 'users/' + key), user);
+    },
     addUser() {
       if (!this.userId) {
         return;
@@ -124,12 +238,30 @@ export default {
         timeout: 500
       });
     },
-    update(key, user, field, isRemove) {
+    updateUser() {
+      this.userWin.forEach((key) => {
+        let user = this.listUser[key];
+        if (this.userWin.length === 1) {
+          this.update(key, user, 'tltsl', false, (this.userLost.length * this.amount))
+        } else {
+          this.update(key, user, 'tltt', false, ((this.userLost.length / this.userWin.length) * this.amount))
+        }
+      })
+
+      this.userLost.forEach((key) => {
+        this.update(key, this.listUser[key], 'svtg', false, -10000)
+      })
+
+    },
+    update(key, user, field, isRemove, money) {
       let dataUpdate = {
+        avatar: user.avatar || "",
+        base: user.base || 0,
         ttl: user.ttl,
         tltsl: user.tltsl,
         tltt: user.tltt,
         svtg: user.svtg,
+        money: (parseInt(user.money || 0) + parseInt(money || 0)),
         updated: new Date().getTime()
       }
 
@@ -146,6 +278,11 @@ export default {
           dataUpdate.svtg++
         }
       }
+
+      // if (isWinner) {
+      //   let lost = ((user.svtg || 0) - (user.ttl || 0)) - user.base
+      //   user.money = user.money - (lost * this.amount)
+      // }
 
       set(ref(db, 'users/' + key), dataUpdate);
 
@@ -174,6 +311,15 @@ export default {
           Object.entries(snapshot.val()).sort(([, a], [, b]) => b.ttl - a.ttl)
         );
         this.listUser = sortedObj;
+
+        let optionUsers = [];
+        Object.keys(sortedObj).forEach(user => {
+          optionUsers.push({
+            id: user,
+            avatar: sortedObj[user].avatar
+          })
+        })
+        this.optionUsers = optionUsers;
       })
 
       onValue(ref(db, '/messages'), (snapshot) => {
@@ -202,6 +348,12 @@ export default {
       }
       return moment(time).calendar();
     },
+
+    formatNumber (number) {
+      return new Intl.NumberFormat("vi-VN", { maximumSignificantDigits: 3 }).format(
+        number,
+      )
+    }
   },
 
   created() {
