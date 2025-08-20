@@ -108,9 +108,9 @@
               </div>
             </div>
             <div class="col-12 row">
-              <div class="col-4">Tổng số tiền ăn được</div>
+              <div class="col-4">Tổng điểm</div>
               <div class="col-4 q-pl-md text-bold">
-                {{formatNumber((user.money || 0))}} VND
+                {{formatNumber((user.money || 0))}}
                 <q-popup-edit v-model="user.money" v-slot="scope">
                   <q-input
                     autofocus
@@ -150,8 +150,8 @@
             </div>
             <div class="col-12 row justify-between items-center">
               <div class="col-4">Tỉ lệ thắng</div>
-              <div class="col-4 q-pl-md">{{user.ttl || 0}} / {{user.svtg || 0}}</div>
-              <div class="col-4 row justify-end">
+              <div class="col-6 q-pl-md">{{user.ttl || 0}} / {{user.svtg || 0}} ({{percentageFormatter(user.ttl, user.svtg)}})</div>
+              <div class="col-2 row justify-end">
               </div>
             </div>
             <div class="col-12 row justify-between items-center">
@@ -189,7 +189,7 @@
                    debounce="1000" square dense label="Tìm tên tướng" class="col-10" clearable/>
           <q-space></q-space>
           <div class="col-2 q-pl-sm row">
-            <q-btn color="green" icon="add" square dense class="col-12" @click="addCard()" />
+            <q-btn color="green" icon="add" square dense class="col-12" @click="addCard(1)" />
           </div>
         </div>
         <div class="q-gutter-sm">
@@ -203,7 +203,7 @@
           <div class="row justify-between items-center">
             <div class="col-12 row">
               <div class="text-bold">
-                {{ card.key }}
+               {{i + 1}} - {{card.nuoc}} | {{ card.key }}
               </div>
               <q-space></q-space>
               <div style="font-size: 10px">
@@ -244,7 +244,7 @@ export default {
         quan: false
       },
       userId: '',
-      tab: 'cards',
+      tab: 'users',
       moneyUpdate: 0,
       listUser: [],
       messages: {},
@@ -287,19 +287,43 @@ export default {
       });
     },
     updateUser() {
+      if (this.isValidate()) {
+        this.$q.notify({
+          avatar: 'https://creatorset.com/cdn/shop/files/Screenshot_2024-04-24_173231.png?v=1713973029',
+          message: 'Ngu',
+          caption: 'Bị chặn rồi haha',
+          color: 'green',
+          timeout: 1000
+        });
+        this.speak("Mày bị ngu hả? bấm lại đê")
+        return;
+      }
       this.userWin.forEach((key) => {
         let user = this.listUser[key];
         if (this.userWin.length === 1) {
-          this.update(key, user, 'tltsl', false, (this.userLost.length * this.amount))
+          this.update(key, user, 'tltsl', false, (this.userLost.length * 10))
         } else {
-          this.update(key, user, 'tltt', false, ((this.userLost.length / this.userWin.length) * this.amount))
+          this.update(key, user, 'tltt', false, ((this.userLost.length / this.userWin.length) * 10))
         }
       })
 
       this.userLost.forEach((key) => {
-        this.update(key, this.listUser[key], 'svtg', false, -10000)
+        this.update(key, this.listUser[key], 'svtg', false)
       })
 
+      this.userWin = [];
+      this.userLost = [];
+    },
+    isValidate () {
+      if (this.userLost.length === 0) {
+        return true
+      } else if (this.userWin.length === 0) {
+        return true
+      } else if (this.userWin.length > (this.userWin.length + this.userLost.length) / 2) {
+        return true
+      }
+
+      return this.userWin.some(name => this.userLost.includes(name))
     },
     update(key, user, field, isRemove, money) {
       let dataUpdate = {
@@ -309,7 +333,7 @@ export default {
         tltsl: user.tltsl,
         tltt: user.tltt,
         svtg: user.svtg,
-        money: (parseInt(user.money || 0) + parseInt(money || 0)),
+        money: (parseFloat(user.money || 0) + parseFloat(money || 0)),
         updated: new Date().getTime()
       }
 
@@ -401,12 +425,12 @@ export default {
         number,
       )
     },
-    addCard() {
+    addCard(win) {
       if (!this.nameCard) {
         return;
       }
       set(ref(db, 'cards/' + this.nameCard), {
-        win: 1,
+        win: win || 0,
         lost: 0,
         nuoc: this.nuoc
       })
@@ -449,16 +473,14 @@ export default {
     },
     getCards() {
       onValue(ref(db, '/cards'), (snapshot) => {
-        const sortedObj = Object.fromEntries(
-          Object.entries(snapshot.val()).sort(([, a], [, b]) => b.win - a.lost)
-        );
+        const sortedObj = snapshot.val();
         let cards = []
         Object.keys(sortedObj).forEach(card => {
           sortedObj[card].key = card
           cards.push(sortedObj[card])
         })
-        this.cards = cards;
-        this.cardsOrigin = cards;
+        this.cards = cards.sort((a, b) => b.win - a.win)
+        this.cardsOrigin = cards.sort((a, b) => b.win - a.win)
 
         this.searchCard()
       })
