@@ -93,7 +93,7 @@
           </div>
         </div>
         <div class="col-12 q-pl-sm row">
-          <q-page-sticky position="bottom-right" :offset="[18, 18]" @click="random()">
+          <q-page-sticky position="bottom-left" :offset="[18, 18]" @click="random()">
             <q-btn fab icon="add" color="red" />
             <q-tooltip>Chọn quân lệnh</q-tooltip>
           </q-page-sticky>
