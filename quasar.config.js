@@ -145,18 +145,20 @@ export default defineConfig((/* ctx */) => {
       // extendPWACustomSWConf (esbuildConf) {},
       // extendGenerateSWOptions (cfg) {},
       // extendInjectManifestOptions (cfg) {}
-      icons: [
-        {
-          src: 'assets/logo3q.jpg',
-          sizes: '192x192',
-          type: 'image/png'
-        },
-        {
-          src: 'assets/logo3q.jpg',
-          sizes: '512x512',
-          type: 'image/png'
-        }
-      ]
+      manifest: {
+        icons: [
+          {
+            src: 'assets/logo3q.jpg',
+            sizes: '192x192',
+            type: 'image/png'
+          },
+          {
+            src: 'assets/logo3q.jpg',
+            sizes: '512x512',
+            type: 'image/png'
+          }
+        ]
+      }
     },
 
     // Full list of options: https://v2.quasar.dev/quasar-cli-vite/developing-cordova-apps/configuring-cordova

@@ -92,6 +92,12 @@
             </div>
           </div>
         </div>
+        <div class="col-12 q-pl-sm row">
+          <q-page-sticky position="bottom-right" :offset="[18, 18]" @click="random()">
+            <q-btn fab icon="add" color="red" />
+            <q-tooltip>Chọn quân lệnh</q-tooltip>
+          </q-page-sticky>
+        </div>
 
         <div v-for="(user, key, i) in listUser" :key="key" class="q-pa-sm">
           <div class="row justify-between items-center">
@@ -178,6 +184,17 @@
                 <q-btn flat icon="remove" size="sm"  @click="update(key, user, 'tltt', true)" />
               </div>
             </div>
+            <div class="col-12 row justify-between items-center text-bold">
+              <div class="col-4 row items-center">
+                <q-icon name="rocket" />
+                BOOM
+              </div>
+              <div class="col-4 q-pl-md">{{user.boom || 0}}</div>
+              <div class="col-4 row justify-end">
+                <q-btn flat icon="add"  size="sm" @click="update(key, user, 'boom')" />
+                <q-btn flat icon="remove" size="sm"  @click="update(key, user, 'boom', true)" />
+              </div>
+            </div>
           </div>
           <q-separator class="q-mt-md" />
         </div>
@@ -192,13 +209,26 @@
             <q-btn color="green" icon="add" square dense class="col-12" @click="addCard(1)" />
           </div>
         </div>
-        <div class="q-gutter-sm">
-          <q-radio v-model="nuoc" checked-icon="task_alt" unchecked-icon="panorama_fish_eye" val="Thục" label="Thục" />
-          <q-radio v-model="nuoc" checked-icon="task_alt" unchecked-icon="panorama_fish_eye" val="Nguỵ" label="Nguỵ" />
-          <q-radio v-model="nuoc" checked-icon="task_alt" unchecked-icon="panorama_fish_eye" val="Ngô" label="Ngô" />
-          <q-radio v-model="nuoc" checked-icon="task_alt" unchecked-icon="panorama_fish_eye" val="Quần" label="Quần" />
+        <div class="">
+          <q-radio v-model="nuoc" @click="searchCard()" checked-icon="task_alt" unchecked-icon="panorama_fish_eye" val="all" label="All" />
+          <q-radio v-model="nuoc" @click="searchCard()" checked-icon="task_alt" unchecked-icon="panorama_fish_eye" val="Thục" label="Thục" />
+          <q-radio v-model="nuoc" @click="searchCard()" checked-icon="task_alt" unchecked-icon="panorama_fish_eye" val="Ngụy" label="Ngụy" />
+          <q-radio v-model="nuoc" @click="searchCard()" checked-icon="task_alt" unchecked-icon="panorama_fish_eye" val="Ngô" label="Ngô" />
+          <q-radio v-model="nuoc" @click="searchCard()" checked-icon="task_alt" unchecked-icon="panorama_fish_eye" val="Quần" label="Quần" />
+        </div>
+        <div class="row q-mb-sm">
+          <q-input outlined v-model="searchAI" autogrow square dense label="Hỏi gì đi?" class="col-10" clearable/>
+          <q-space></q-space>
+          <div class="col-2 row">
+            <q-btn :loading="loading" color="green" icon="search"  @click="getAiRes()"  class="col-12">
+              <template v-slot:loading>
+                <q-spinner-hourglass class="on-left" />
+              </template>
+            </q-btn>
+          </div>
         </div>
 
+        <div class="q-pa-sm"><strong>Tổng số tướng:</strong> {{cards.length}}</div>
         <div v-for="(card, i) in cards" :key="i" class="q-pa-sm">
           <div class="row justify-between items-center">
             <div class="col-12 row">
@@ -225,6 +255,32 @@
         </div>
       </q-tab-panel>
     </q-tab-panels>
+
+    <q-dialog v-model="dialog" position="bottom">
+      <q-card>
+        <q-card-section class="row items-center q-pb-none">
+          <div class="text-h6"></div>
+          <q-space />
+          <q-btn icon="close" flat round dense v-close-popup />
+        </q-card-section>
+        <div class="q-pa-md" v-html="resultAI"></div>
+      </q-card>
+    </q-dialog>
+
+    <q-dialog v-model="dialogRanDom" position="bottom" full-width>
+      <q-card>
+        <q-card-section class="row items-center q-pb-none">
+          <div class="text-h6">Quân lệnh nè</div>
+          <q-space />
+          <q-btn icon="close" flat round dense v-close-popup />
+        </q-card-section>
+        <div class="column q-pa-md">
+          <div v-for="(item, key) in randomQL" :key="key" class="q-pa-sm">
+            <div>{{item}}</div>
+          </div>
+        </div>
+      </q-card>
+    </q-dialog>
   </q-page>
 </template>
 
@@ -232,11 +288,20 @@
 import { getDatabase, ref, set, onValue } from 'firebase/database'
 const db = getDatabase()
 import moment from 'moment';
+import { GoogleGenerativeAI } from "@google/generative-ai";
+const genAI = new GoogleGenerativeAI("AIzaSyB9xd60S19iYc1gB6CDDb0VRrOgyf0qDz4");
+const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+import { marked } from "marked";
 
 export default {
   data() {
     return {
-      nuoc: "Thục",
+      dialog: false,
+      dialogRanDom: false,
+      loading: false,
+      nuoc: "all",
+      searchAI: "",
+      resultAI: "",
       desert: {
         thuc: false,
         nguy: false,
@@ -254,7 +319,8 @@ export default {
       amount: 10000,
       cards: [],
       cardsOrigin: [],
-      nameCard: ""
+      nameCard: "",
+      randomQL: []
     }
   },
 
@@ -263,6 +329,21 @@ export default {
   watch: {
   },
   methods: {
+    async getAiRes () {
+      this.loading = true;
+      const jsonString = JSON.stringify(this.cardsOrigin, null, 2);
+      const result = await model.generateContent(
+        [
+          { text: `Tôi có tập dữ liệu JSON:${jsonString}` },
+          { text: " Với các key name: nuoc = nước, key = tên tướng, win = số lần thắng." },
+          { text: `Dựa vào thông tin của JSON hãy tự tính toán và đưa ra câu trả lời.` },
+          { text: `Câu hỏi: "${this.searchAI}"` }
+        ])
+      this.resultAI = marked(result.response.text());
+      this.loading = false;
+      this.dialog = true;
+      // this.speak(result.response.text());
+    },
     updateMoney(key, user, money) {
       user = JSON.parse(JSON.stringify(user))
       user.money = money || 0;
@@ -303,6 +384,7 @@ export default {
         if (this.userWin.length === 1) {
           this.update(key, user, 'tltsl', false, (this.userLost.length * 10))
         } else {
+          console.log("da vao day", ((this.userLost.length / this.userWin.length) * 10))
           this.update(key, user, 'tltt', false, ((this.userLost.length / this.userWin.length) * 10))
         }
       })
@@ -334,18 +416,19 @@ export default {
         tltt: user.tltt,
         svtg: user.svtg,
         money: (parseFloat(user.money || 0) + parseFloat(money || 0)),
-        updated: new Date().getTime()
+        updated: new Date().getTime(),
+        boom: user.boom || 0
       }
 
       if (isRemove) {
         dataUpdate[field]--
-        if (field !== 'svtg') {
+        if (field !== 'svtg' && field !== 'boom') {
           dataUpdate.ttl--
           dataUpdate.svtg--
         }
       } else {
         dataUpdate[field]++
-        if (field !== 'svtg') {
+        if (field !== 'svtg' && field !== 'boom') {
           dataUpdate.ttl++
           dataUpdate.svtg++
         }
@@ -421,14 +504,22 @@ export default {
       return moment(time).calendar();
     },
     formatNumber (number) {
-      return new Intl.NumberFormat("vi-VN", { maximumSignificantDigits: 3 }).format(
-        number,
-      )
+      return new Intl.NumberFormat("en-US").format(number)
     },
     addCard(win) {
       if (!this.nameCard) {
         return;
       }
+
+      if (this.nuoc === 'all') {
+        this.$q.notify({
+          type: 'negative',
+          message: 'Chọn nước đi bạn êi!!!',
+          timeout: 500
+        });
+        return;
+      }
+
       set(ref(db, 'cards/' + this.nameCard), {
         win: win || 0,
         lost: 0,
@@ -463,9 +554,24 @@ export default {
     },
     searchCard() {
       let cardsOrigin = JSON.parse(JSON.stringify(this.cardsOrigin));
+
+      if (this.nameCard && (this.nuoc !== 'all')) {
+        const nameLowerKeyword = this.nameCard.toLowerCase()
+        const nuocLowerKeyword = this.nuoc.toLowerCase()
+
+        this.cards = cardsOrigin.filter(item => item.key.toLowerCase().includes(nameLowerKeyword) && item.nuoc.toLowerCase().includes(nuocLowerKeyword))
+        return;
+      }
+
       if (this.nameCard) {
         const lowerKeyword = this.nameCard.toLowerCase()
         this.cards = cardsOrigin.filter(item => item.key.toLowerCase().includes(lowerKeyword))
+        return;
+      }
+
+      if (this.nuoc && this.nuoc !== 'all') {
+        const lowerKeyword = this.nuoc.toLowerCase()
+        this.cards = cardsOrigin.filter(item => item.nuoc.toLowerCase().includes(lowerKeyword))
         return;
       }
 
@@ -477,6 +583,9 @@ export default {
         let cards = []
         Object.keys(sortedObj).forEach(card => {
           sortedObj[card].key = card
+          if (sortedObj[card].nuoc === "Nguỵ") {
+            sortedObj[card].nuoc = "Ngụy"
+          }
           cards.push(sortedObj[card])
         })
         this.cards = cards.sort((a, b) => b.win - a.win)
@@ -484,8 +593,26 @@ export default {
 
         this.searchCard()
       })
+    },
+    random () {
+      let arr = [
+        "Rút 1 đưa 2",
+        "Tự mất máu",
+        "K dc dùng bài, vô hiêu hoá phi toả định kỹ",
+        "Chồng tướng, k dc hồi máu",
+        "Gây điểm sát thương",
+        "1 trên tay 1 trong vùng trang bị"
+      ]
+
+      const first = Math.floor(Math.random() * arr.length);
+      let second;
+      do {
+        second = Math.floor(Math.random() * arr.length);
+      } while (second === first);
+      this.randomQL = [arr[first], arr[second]];
+      this.dialogRanDom = true;
     }
-  },
+   },
 
   created() {
   },

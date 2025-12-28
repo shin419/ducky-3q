@@ -27,12 +27,16 @@
     "postinstall": "quasar prepare"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "@quasar/extras": "^1.16.4",
+    "buffer": "^6.0.3",
     "canvas-confetti": "^1.9.3",
     "firebase": "^11.9.0",
+    "marked": "^16.2.1",
     "moment": "^2.30.1",
     "quasar": "^2.16.0",
     "register-service-worker": "^1.7.2",
+    "tesseract.js": "^6.0.1",
     "vue": "^3.4.18",
     "vue-router": "^4.0.0",
     "xlsx": "^0.18.5"
